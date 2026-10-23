@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>市集攤商場次即時查詢系統</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #1e293b;
+      --highlight: #fef08a;
+      --reserved: #bbf7d0;
+      --border: #e2e8f0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding-bottom: 50px; }
+    header { background: #fff; border-bottom: 1px solid var(--border); padding: 16px 20px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 4px rgba(0,0,0,0.04); }
+    .header-content { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+    .title-row { display: flex; justify-content: space-between; align-items: baseline; }
+    .title-row h1 { font-size: 1.25rem; font-weight: 700; color: #0f172a; }
+    .updated-time { font-size: 0.75rem; color: #64748b; }
+    .search-box { position: relative; }
+    .search-box input { width: 100%; padding: 12px 16px; border: 2px solid var(--primary); border-radius: 8px; font-size: 1rem; outline: none; }
+    .container { max-width: 900px; margin: 20px auto; padding: 0 16px; }
+    .status-banner { background: #e0f2fe; color: #0369a1; padding: 10px 14px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+    .btn-copy { background: #0284c7; color: #fff; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
+    .card { background: var(--card-bg); border-radius: 10px; border: 1px solid var(--border); margin-bottom: 20px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .card-header { background: #f1f5f9; padding: 12px 16px; font-weight: 700; font-size: 1.05rem; border-bottom: 1px solid var(--border); }
+    .session-row { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+    .session-row:last-child { border-bottom: none; }
+    .session-info { display: flex; align-items: center; gap: 8px; }
+    .session-date { font-weight: 700; font-size: 0.95rem; color: #0f172a; }
+    .badge { font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
+    .badge-full { background: #fee2e2; color: #dc2626; }
+    .badge-reserved { background: var(--reserved); color: #166534; font-size: 0.7rem; margin-left: 4px; padding: 1px 4px; border-radius: 3px; }
+    .vendor-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
+    .vendor-item { background: #f8fafc; border: 1px solid #cbd5e1; padding: 5px 10px; border-radius: 6px; font-size: 0.85rem; }
+    .vendor-item.matched { background: var(--highlight) !important; border-color: #eab308; font-weight: 700; transform: scale(1.03); box-shadow: 0 0 0 2px #eab308; }
+    .loading { text-align: center; padding: 60px 0; color: #64748b; font-size: 1rem; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-content">
+    <div class="title-row">
+      <h1>市集場次即時查詢</h1>
+      <span class="updated-time" id="updateText">連線中...</span>
+    </div>
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="輸入您的品牌名稱（例：吉百分、漢堡拿督）" oninput="renderData()">
+    </div>
+  </div>
+</header>
+
+<div class="container">
+  <div id="summaryBar" class="status-banner" style="display: none;">
+    <span id="matchCountText"></span>
+    <button class="btn-copy" onclick="copySchedule()">複製我的排班表</button>
+  </div>
+  <div id="contentList">
+    <div class="loading">正在同步最新試算表資料...</div>
+  </div>
+</div>
+
+<script>
+  // 請替換為步驟 2 部署後取得的 Web App URL
+  const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxSYBwUC5tHJZcXVUtlyjfdpypiIg7LFKax3ufSPyAknwch57y3o4JPRAxbzYJOuEihwQ/exec";
+
+  let rawLocations = [];
+  let lastQuery = "";
+
+  async function fetchData() {
+    try {
+      const res = await fetch(GAS_API_URL);
+      const json = await res.json();
+      if (json.success) {
+        rawLocations = json.data;
+        document.getElementById("updateText").innerText = `最後同步：${json.updatedTime}`;
+        renderData();
+      } else {
+        document.getElementById("contentList").innerHTML = `<div class="loading">載入失敗：${json.error}</div>`;
+      }
+    } catch (err) {
+      document.getElementById("contentList").innerHTML = `<div class="loading">無法連線至 Google 試算表，請確認 Web App 權限是否設為「所有人」。</div>`;
+    }
+  }
+
+function renderData() {
+    const query = document.getElementById("searchInput").value.trim().toLowerCase();
+    lastQuery = query;
+    const container = document.getElementById("contentList");
+    const summaryBar = document.getElementById("summaryBar");
+    
+    let totalMatches = 0;
+    let mySchedule = [];
+    let html = "";
+
+    rawLocations.forEach(loc => {
+      let locationSessionsHtml = "";
+
+      loc.sessions.forEach(session => {
+        // 檢查該場次內是否有符合搜尋關鍵字的攤商
+        const matchedVendors = session.vendors.filter(v => query && v.name.toLowerCase().includes(query));
+        const hasMatch = matchedVendors.length > 0;
+
+        // 【關鍵過濾】：若有輸入關鍵字，但當天完全沒有該攤商，直接跳過不顯示該列
+        if (query && !hasMatch) {
+          return;
+        }
+
+        let vendorsHtml = "";
+        session.vendors.forEach(v => {
+          const isMatched = query && v.name.toLowerCase().includes(query);
+          if (isMatched) {
+            totalMatches++;
+          }
+
+          vendorsHtml += `
+            <span class="vendor-item ${isMatched ? 'matched' : ''}">
+              ${v.name}
+              ${v.isReserved ? '<span class="badge-reserved">已付</span>' : ''}
+            </span>
+          `;
+        });
+
+        if (hasMatch) {
+          mySchedule.push(`📍 ${loc.name} | ${session.date} (${session.status || '正常'})`);
+        }
+
+        locationSessionsHtml += `
+          <div class="session-row">
+            <div class="session-info">
+              <span class="session-date">${session.date}</span>
+              ${session.status ? `<span class="badge badge-full">${session.status}</span>` : ''}
+            </div>
+            <div class="vendor-wrap">${vendorsHtml}</div>
+          </div>
+        `;
+      });
+
+      // 如果該場地底下「至少有一個場次符合條件」（或未搜尋時有場次），才顯示該場地卡片
+      if (locationSessionsHtml !== "") {
+        html += `
+          <div class="card">
+            <div class="card-header">${loc.name}</div>
+            ${locationSessionsHtml}
+          </div>
+        `;
+      }
+    });
+
+    if (query && totalMatches === 0) {
+      container.innerHTML = `<div class="loading">查無「${query}」的出攤紀錄，請確認名稱是否正確。</div>`;
+      summaryBar.style.display = "none";
+      return;
+    }
+
+    container.innerHTML = html;
+
+    if (query && totalMatches > 0) {
+      summaryBar.style.display = "flex";
+      document.getElementById("matchCountText").innerText = `🎯「${query}」共有 ${totalMatches} 個出攤場次`;
+      window.cachedMySchedule = mySchedule;
+    } else {
+      summaryBar.style.display = "none";
+    }
+  }
+  function copySchedule() {
+    if (!window.cachedMySchedule || window.cachedMySchedule.length === 0) return;
+    const text = `【${lastQuery} 出攤場次清單】\n` + window.cachedMySchedule.join("\n");
+    navigator.clipboard.writeText(text).then(() => {
+      alert("已複製專屬班表！可直接貼到 LINE 備忘或公告。");
+    });
+  }
+
+  fetchData();
+</script>
+</body>
+</html>
