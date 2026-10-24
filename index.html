@@ -2,181 +2,749 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>老闆當家查詢系統</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>老闆當家 - 市集排班查詢系統</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    :root {
-      --primary: #2563eb;
-      --bg: #f8fafc;
-      --card-bg: #ffffff;
-      --text: #1e293b;
-      --highlight: #fef08a;
-      --reserved: #bbf7d0;
-      --border: #e2e8f0;
+    body {
+      font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-tap-highlight-color: transparent;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding-bottom: 50px; }
-    header { background: #fff; border-bottom: 1px solid var(--border); padding: 16px 20px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 4px rgba(0,0,0,0.04); }
-    .header-content { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
-    .title-row { display: flex; justify-content: space-between; align-items: baseline; }
-    .title-row h1 { font-size: 1.25rem; font-weight: 700; color: #0f172a; }
-    .updated-time { font-size: 0.75rem; color: #64748b; }
-    .search-box { position: relative; }
-    .search-box input { width: 100%; padding: 12px 16px; border: 2px solid var(--primary); border-radius: 8px; font-size: 1rem; outline: none; }
-    .container { max-width: 900px; margin: 20px auto; padding: 0 16px; }
-    .status-banner { background: #e0f2fe; color: #0369a1; padding: 10px 14px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
-    .btn-copy { background: #0284c7; color: #fff; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
-    .card { background: var(--card-bg); border-radius: 10px; border: 1px solid var(--border); margin-bottom: 20px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-    .card-header { background: #f1f5f9; padding: 12px 16px; font-weight: 700; font-size: 1.05rem; border-bottom: 1px solid var(--border); }
-    .session-row { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
-    .session-row:last-child { border-bottom: none; }
-    .session-info { display: flex; align-items: center; gap: 8px; }
-    .session-date { font-weight: 700; font-size: 0.95rem; color: #0f172a; }
-    .badge { font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
-    .badge-full { background: #fee2e2; color: #dc2626; }
-    .badge-reserved { background: var(--reserved); color: #166534; font-size: 0.7rem; margin-left: 4px; padding: 1px 4px; border-radius: 3px; }
-    .vendor-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
-    .vendor-item { background: #f8fafc; border: 1px solid #cbd5e1; padding: 5px 10px; border-radius: 6px; font-size: 0.85rem; }
-    .vendor-item.matched { background: var(--highlight) !important; border-color: #eab308; font-weight: 700; transform: scale(1.03); box-shadow: 0 0 0 2px #eab308; }
-    .loading { text-align: center; padding: 60px 0; color: #64748b; font-size: 1rem; }
+    .mark-highlight {
+      background-color: #fef08a;
+      color: #854d0e;
+      font-weight: 700;
+      padding: 0.1rem 0.35rem;
+      border-radius: 0.375rem;
+      border: 1px solid #fde047;
+      display: inline-block;
+      animation: pulseHighlight 1.5s ease-in-out infinite alternate;
+    }
+    @keyframes pulseHighlight {
+      from { transform: scale(1); }
+      to { transform: scale(1.04); }
+    }
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+    }
+    /* 自訂平滑滾動條 */
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
   </style>
 </head>
-<body>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col pb-16 selection:bg-amber-200">
 
-<header>
-  <div class="header-content">
-    <div class="title-row">
-      <h1>老闆當家查詢系統</h1>
-      <span class="updated-time" id="updateText">連線中...</span>
+  <!-- 頂部手機優化導航列 -->
+  <header class="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 text-white shadow-md sticky top-0 z-40">
+    <div class="max-w-5xl mx-auto px-3.5 py-3 flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center text-white text-lg shadow-inner">
+          <i class="fa-solid fa-store"></i>
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-bold tracking-tight">好野市集排班查詢</h1>
+          <p id="updateText" class="text-[11px] text-emerald-100 flex items-center gap-1.5">
+            <span class="inline-block w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span>
+            連線試算表中...
+          </p>
+        </div>
+      </div>
+
+      <!-- 重新連動按鈕 -->
+      <button onclick="fetchData(true)" class="px-2.5 py-1.5 bg-white/10 hover:bg-white/20 active:scale-95 text-white rounded-lg text-xs flex items-center gap-1.5 transition">
+        <i id="syncIcon" class="fa-solid fa-rotate"></i>
+        <span class="hidden sm:inline">即時同步</span>
+      </button>
     </div>
-    <div class="search-box">
-      <input type="text" id="searchInput" placeholder="輸入您的品牌名稱（例：好野烤肉, 杰哥柑仔店）" oninput="renderData()">
-    </div>
-  </div>
-</header>
+  </header>
 
-<div class="container">
-  <div id="summaryBar" class="status-banner" style="display: none;">
-    <span id="matchCountText"></span>
-    <button class="btn-copy" onclick="copySchedule()">複製我的排班表</button>
-  </div>
-  <div id="contentList">
-    <div class="loading">正在同步最新試算表資料...</div>
-  </div>
-</div>
-
-<script>
-  // 請替換為步驟 2 部署後取得的 Web App URL
-  const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxb2TSOJSZAJpHABPvlNamRMNpSM6P3n5YIgDmheTkkUp_XLcX7wOwtCe0als1qvZ-2/exec";
-
-  let rawLocations = [];
-  let lastQuery = "";
-
-  async function fetchData() {
-    try {
-      const res = await fetch(GAS_API_URL);
-      const json = await res.json();
-      if (json.success) {
-        rawLocations = json.data;
-        document.getElementById("updateText").innerText = `最後同步：${json.updatedTime}`;
-        renderData();
-      } else {
-        document.getElementById("contentList").innerHTML = `<div class="loading">載入失敗：${json.error}</div>`;
-      }
-    } catch (err) {
-      document.getElementById("contentList").innerHTML = `<div class="loading">無法連線至 Google 試算表，請確認 Web App 權限是否設為「所有人」。</div>`;
-    }
-  }
-
-function renderData() {
-    const query = document.getElementById("searchInput").value.trim().toLowerCase();
-    lastQuery = query;
-    const container = document.getElementById("contentList");
-    const summaryBar = document.getElementById("summaryBar");
+  <!-- 主操作區 -->
+  <main class="max-w-5xl w-full mx-auto px-3 sm:px-5 py-4 flex-1">
     
-    let totalMatches = 0;
-    let mySchedule = [];
-    let html = "";
+    <!-- 搜尋與場地篩選卡片 (完全中立無偏頗範例) -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200/90 p-3 sm:p-4 mb-4">
+      <div class="flex flex-col sm:flex-row gap-2.5">
+        <!-- 關鍵字搜尋欄 -->
+        <div class="relative flex-1">
+          <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 text-sm">
+            <i class="fa-solid fa-magnifying-glass"></i>
+          </div>
+          <input 
+            type="text" 
+            id="searchInput"
+            placeholder="請輸入攤位名稱或餐點關鍵字搜尋..." 
+            class="w-full pl-9 pr-14 py-2.5 sm:py-3 bg-slate-50 border border-slate-300 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/15 rounded-xl text-slate-800 placeholder-slate-400 text-sm sm:text-base outline-none transition"
+            oninput="handleSearchChange()"
+          >
+          <div id="clearBtnWrap" class="hidden absolute inset-y-0 right-1.5 flex items-center">
+            <button onclick="clearSearch()" class="px-2.5 py-1 text-xs text-slate-500 hover:text-slate-700 bg-slate-200/70 hover:bg-slate-200 rounded-lg transition">
+              清空
+            </button>
+          </div>
+        </div>
 
-    rawLocations.forEach(loc => {
-      let locationSessionsHtml = "";
+        <!-- 場地篩選下拉選單 (自 API 動態填入) -->
+        <div class="w-full sm:w-64 shrink-0">
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-emerald-600 text-xs">
+              <i class="fa-solid fa-location-dot"></i>
+            </div>
+            <select 
+              id="locationFilter" 
+              onchange="handleLocationFilterChange()"
+              class="w-full pl-7 pr-8 py-2.5 sm:py-3 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-medium text-slate-700 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/15 outline-none transition cursor-pointer appearance-none"
+            >
+              <option value="all">📍 全部場地 (全部)</option>
+            </select>
+            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-400">
+              <i class="fa-solid fa-chevron-down text-xs"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-      loc.sessions.forEach(session => {
-        // 檢查該場次內是否有符合搜尋關鍵字的攤商
-        const matchedVendors = session.vendors.filter(v => query && v.name.toLowerCase().includes(query));
-        const hasMatch = matchedVendors.length > 0;
+    <!-- 模式切換 Tabs 與筆數統計 -->
+    <div class="flex items-center justify-between gap-2 mb-3">
+      <div class="inline-flex p-1 bg-slate-200/80 rounded-xl text-xs font-semibold w-full sm:w-auto">
+        <button id="tabListBtn" onclick="switchViewMode('list')" class="flex-1 sm:flex-initial text-center px-4 py-2 rounded-lg transition-all shadow-sm bg-white text-emerald-800">
+          <i class="fa-solid fa-list-check mr-1.5"></i> 清單排班模式
+        </button>
+        <button id="tabCalendarBtn" onclick="switchViewMode('calendar')" class="flex-1 sm:flex-initial text-center px-4 py-2 rounded-lg text-slate-600 hover:text-slate-900 transition-all">
+          <i class="fa-regular fa-calendar-days mr-1.5"></i> 月曆閱讀模式
+        </button>
+      </div>
 
-        // 【關鍵過濾】：若有輸入關鍵字，但當天完全沒有該攤商，直接跳過不顯示該列
-        if (query && !hasMatch) {
-          return;
+      <div class="hidden sm:flex items-center gap-2 text-xs font-medium text-slate-500">
+        <span>匹配場次：<b id="matchCountBadge" class="text-emerald-600 font-bold text-sm">0</b> 場</span>
+      </div>
+    </div>
+
+    <!-- 專屬複製橫幅 (搜尋有結果時醒目展示) -->
+    <div id="copyBanner" class="hidden bg-emerald-50 border border-emerald-200 rounded-xl p-3 mb-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-sm">
+      <div class="text-xs sm:text-sm text-emerald-950 truncate flex items-center gap-1.5">
+        <i class="fa-solid fa-circle-check text-emerald-600 text-sm"></i>
+        <span>已為您篩選「<b id="searchedKeywordText" class="underline decoration-emerald-500 underline-offset-2"></b>」，共 <span id="scheduleCountText" class="font-bold text-emerald-700 text-sm"></span> 個出攤場次</span>
+      </div>
+      <button onclick="copyMySchedule()" class="shrink-0 w-full sm:w-auto px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-medium text-xs flex items-center justify-center gap-1.5 shadow transition">
+        <i class="fa-regular fa-copy"></i> 複製我的班表到 LINE
+      </button>
+    </div>
+
+    <!-- 載入中骨架狀態 -->
+    <div id="loadingBox" class="py-16 text-center text-slate-500 text-sm">
+      <i class="fa-solid fa-circle-notch fa-spin text-2xl text-emerald-600 mb-2"></i>
+      <p>正在同步試算表最新排班資料...</p>
+    </div>
+
+    <!-- 視圖 1: 清單排班模式 -->
+    <div id="listView" class="space-y-4">
+      <div id="contentList" class="space-y-4"></div>
+    </div>
+
+    <!-- 視圖 2: 月曆閱讀模式 (挑高無遮蔽，一覽無遺) -->
+    <div id="calendarView" class="hidden space-y-3.5">
+      <!-- 月份控制列 -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-3 sm:p-3.5 flex items-center justify-between">
+        <button onclick="changeMonth(-1)" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 flex items-center justify-center transition">
+          <i class="fa-solid fa-chevron-left text-xs"></i>
+        </button>
+        <div class="text-center">
+          <div id="calMonthTitle" class="text-base sm:text-lg font-bold text-slate-800">2026年 11月</div>
+          <p class="text-[11px] text-slate-400">點選有標記的日期即可展開當日排班細節</p>
+        </div>
+        <button onclick="changeMonth(1)" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 flex items-center justify-center transition">
+          <i class="fa-solid fa-chevron-right text-xs"></i>
+        </button>
+      </div>
+
+      <!-- 月曆主體 (好野風格溫暖金黃表頭) -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="calendar-grid bg-amber-400 text-amber-950 font-bold text-xs sm:text-sm text-center py-2.5 shadow-sm">
+          <span>一</span>
+          <span>二</span>
+          <span>三</span>
+          <span>四</span>
+          <span>五</span>
+          <span class="text-amber-900">六</span>
+          <span class="text-amber-900">日</span>
+        </div>
+
+        <!-- 月曆日期格子 (挑高自適應) -->
+        <div id="calendarDaysGrid" class="calendar-grid bg-slate-200 gap-[1px]"></div>
+      </div>
+
+      <!-- 點選日期後的展開詳細抽屜 -->
+      <div id="selectedDateDrawer" class="hidden bg-white rounded-2xl border-2 border-emerald-400/80 shadow-lg p-4 sm:p-5 transition-all">
+        <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-2.5">
+          <div class="flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
+            <h3 id="drawerDateTitle" class="font-bold text-sm sm:text-base text-slate-800">當日出攤總覽</h3>
+          </div>
+          <button onclick="closeDrawer()" class="text-slate-400 hover:text-slate-600 text-xs px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg transition">關閉</button>
+        </div>
+        <div id="drawerSessionsContent" class="space-y-3"></div>
+      </div>
+    </div>
+
+    <!-- 搜尋無結果卡片 -->
+    <div id="noResultBox" class="hidden text-center py-14 px-4 bg-white rounded-2xl border border-dashed border-slate-300">
+      <div class="w-12 h-12 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-2.5 text-xl">
+        <i class="fa-solid fa-magnifying-glass"></i>
+      </div>
+      <h3 class="text-slate-700 font-bold text-sm mb-1">查無符合條件的排班資料</h3>
+      <p class="text-slate-400 text-xs mb-3.5">請確認關鍵字是否正確，或切換「場地篩選」為全部場地。</p>
+      <button onclick="clearSearch()" class="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 rounded-lg text-xs font-medium transition">
+        重設搜尋條件
+      </button>
+    </div>
+
+  </main>
+
+  <!-- 提示 Toast -->
+  <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur text-white px-4 py-2 rounded-full text-xs font-medium shadow-2xl transition-all duration-300 opacity-0 pointer-events-none translate-y-3 z-50 flex items-center gap-1.5">
+    <i class="fa-solid fa-check text-emerald-400"></i>
+    <span id="toastMsg">已複製到剪貼簿</span>
+  </div>
+
+  <script>
+    // 嚴格串接既有的 Google Apps Script Web App API
+    const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxb2TSOJSZAJpHABPvlNamRMNpSM6P3n5YIgDmheTkkUp_XLcX7wOwtCe0als1qvZ-2/exec";
+
+    // 狀態變數
+    let rawLocations = [];
+    let currentKeyword = "";
+    let selectedLocation = "all";
+    let currentViewMode = "list"; // 'list' | 'calendar'
+    let currentYear = 2026;
+    let currentMonth = 10; // 0-based: 10 代表 11月
+    let cachedScheduleText = [];
+
+    // 各場地色彩風格對照
+    function getLocationStyle(locName) {
+      if (locName.includes("嘉興")) return { bg: "bg-pink-100 text-pink-800 border-pink-300", cardBg: "bg-pink-50/70 border-pink-200", dot: "bg-pink-500", short: "嘉興路" };
+      if (locName.includes("勝利")) return { bg: "bg-amber-100 text-amber-900 border-amber-300", cardBg: "bg-amber-50/70 border-amber-200", dot: "bg-amber-500", short: "勝利七" };
+      if (locName.includes("星都匯")) return { bg: "bg-blue-100 text-blue-900 border-blue-300", cardBg: "bg-blue-50/70 border-blue-200", dot: "bg-blue-500", short: "星都匯" };
+      if (locName.includes("嘉豐")) return { bg: "bg-rose-100 text-rose-900 border-rose-300", cardBg: "bg-rose-50/70 border-rose-200", dot: "bg-rose-500", short: "嘉豐十一" };
+      if (locName.includes("雙子星")) return { bg: "bg-emerald-100 text-emerald-900 border-emerald-300", cardBg: "bg-emerald-50/70 border-emerald-200", dot: "bg-emerald-600", short: "雙子星" };
+      return { bg: "bg-slate-100 text-slate-800 border-slate-300", cardBg: "bg-slate-50 border-slate-200", dot: "bg-slate-500", short: locName.substring(0, 4) };
+    }
+
+    // 嚴格日期解析器 (解決幽靈場次 Bug)
+    // 必須為純粹有效的日期：如 "11月2日", "2026/11/02", "11/2" 等，嚴格驗證月 (1-12) 與日 (1-31)
+    function parseStrictDate(dateStr) {
+      if (!dateStr || typeof dateStr !== "string") return null;
+      const clean = dateStr.trim();
+      
+      // 1. 中文格式：X月X日
+      const zhMatch = clean.match(/^(\d{1,2})月(\d{1,2})日?$/);
+      if (zhMatch) {
+        const m = parseInt(zhMatch[1], 10);
+        const d = parseInt(zhMatch[2], 10);
+        if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+          return { month: m, day: d, standardKey: `${m}月${d}日` };
         }
+      }
 
-        let vendorsHtml = "";
-        session.vendors.forEach(v => {
-          const isMatched = query && v.name.toLowerCase().includes(query);
-          if (isMatched) {
-            totalMatches++;
+      // 2. 斜線/橫線格式：YYYY/MM/DD 或 MM/DD
+      const slashMatch = clean.match(/^(?:(\d{4})[\/\-])?(\d{1,2})[\/\-](\d{1,2})$/);
+      if (slashMatch) {
+        const m = parseInt(slashMatch[2], 10);
+        const d = parseInt(slashMatch[3], 10);
+        if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+          return { month: m, day: d, standardKey: `${m}月${d}日` };
+        }
+      }
+
+      return null;
+    }
+
+    // 從 Google Apps Script 擷取資料
+    async function fetchData(isManual = false) {
+      const syncIcon = document.getElementById("syncIcon");
+      if (syncIcon) syncIcon.classList.add("fa-spin");
+      document.getElementById("updateText").innerText = "連線試算表中...";
+
+      try {
+        const res = await fetch(GAS_API_URL);
+        const json = await res.json();
+        if (json.success && json.data) {
+          // 清理並驗證資料：徹底剃除幽靈場次與無效日期
+          rawLocations = sanitizeLocationData(json.data);
+          document.getElementById("updateText").innerText = `已連線同步 (${json.updatedTime ? json.updatedTime.split(" ")[1] : '最新'})`;
+        } else {
+          throw new Error("試算表回傳格式異常");
+        }
+      } catch (err) {
+        console.error("無法連線 Google Sheet API:", err);
+        document.getElementById("updateText").innerText = "連線失敗，請稍後重試";
+      } finally {
+        if (syncIcon) syncIcon.classList.remove("fa-spin");
+        document.getElementById("loadingBox").classList.add("hidden");
+        populateLocationFilter();
+        renderAll();
+        if (isManual) showToast("已同步試算表最新排班！");
+      }
+    }
+
+    // 核心資料清理：嚴格排除無攤位 (vendors=0) 或非日期列
+    function sanitizeLocationData(locations) {
+      const validLocations = [];
+
+      locations.forEach(loc => {
+        if (!loc || !loc.name || !Array.isArray(loc.sessions)) return;
+
+        const validSessions = [];
+        loc.sessions.forEach(session => {
+          // 必須具備有效日期，且攤商名單長度大於 0
+          const parsed = parseStrictDate(session.date);
+          const hasVendors = session.vendors && Array.isArray(session.vendors) && session.vendors.length > 0;
+
+          if (parsed && hasVendors) {
+            validSessions.push({
+              date: parsed.standardKey,
+              originalDate: session.date,
+              month: parsed.month,
+              day: parsed.day,
+              status: session.status || "",
+              vendors: session.vendors
+            });
+          }
+        });
+
+        if (validSessions.length > 0) {
+          validLocations.push({
+            name: loc.name.trim(),
+            sessions: validSessions
+          });
+        }
+      });
+
+      return validLocations;
+    }
+
+    // 動態填入「場地篩選下拉選單」
+    function populateLocationFilter() {
+      const select = document.getElementById("locationFilter");
+      const currentVal = select.value;
+      let html = `<option value="all">📍 全部場地 (共 ${rawLocations.length} 個地點)</option>`;
+
+      rawLocations.forEach(loc => {
+        html += `<option value="${loc.name}">📍 ${loc.name}</option>`;
+      });
+
+      select.innerHTML = html;
+      if (currentVal && select.querySelector(`option[value="${currentVal}"]`)) {
+        select.value = currentVal;
+      }
+    }
+
+    function handleSearchChange() {
+      const input = document.getElementById("searchInput");
+      currentKeyword = input.value.trim();
+      document.getElementById("clearBtnWrap").classList.toggle("hidden", !currentKeyword);
+      renderAll();
+    }
+
+    function handleLocationFilterChange() {
+      const select = document.getElementById("locationFilter");
+      selectedLocation = select.value;
+      renderAll();
+    }
+
+    function clearSearch() {
+      document.getElementById("searchInput").value = "";
+      currentKeyword = "";
+      document.getElementById("clearBtnWrap").classList.add("hidden");
+      renderAll();
+    }
+
+    function switchViewMode(mode) {
+      currentViewMode = mode;
+      const tabList = document.getElementById("tabListBtn");
+      const tabCal = document.getElementById("tabCalendarBtn");
+      const listView = document.getElementById("listView");
+      const calView = document.getElementById("calendarView");
+
+      if (mode === "list") {
+        tabList.className = "flex-1 sm:flex-initial text-center px-4 py-2 rounded-lg transition-all shadow-sm bg-white text-emerald-800 font-semibold";
+        tabCal.className = "flex-1 sm:flex-initial text-center px-4 py-2 rounded-lg text-slate-600 hover:text-slate-900 transition-all font-normal";
+        listView.classList.remove("hidden");
+        calView.classList.add("hidden");
+      } else {
+        tabCal.className = "flex-1 sm:flex-initial text-center px-4 py-2 rounded-lg transition-all shadow-sm bg-white text-emerald-800 font-semibold";
+        tabList.className = "flex-1 sm:flex-initial text-center px-4 py-2 rounded-lg text-slate-600 hover:text-slate-900 transition-all font-normal";
+        calView.classList.remove("hidden");
+        listView.classList.add("hidden");
+      }
+      renderAll();
+    }
+
+    function highlightText(text, keyword) {
+      if (!keyword) return text;
+      const regex = new RegExp(`(${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+      return text.replace(regex, '<span class="mark-highlight">$1</span>');
+    }
+
+    // 取得當前經過場地篩選後的地點
+    function getFilteredLocations() {
+      if (selectedLocation === "all") return rawLocations;
+      return rawLocations.filter(loc => loc.name === selectedLocation);
+    }
+
+    function renderAll() {
+      renderListView();
+      renderCalendarView();
+    }
+
+    // 渲染模式 1: 清單排班模式 (精簡無關日期，僅留下有出攤之日期)
+    function renderListView() {
+      const container = document.getElementById("contentList");
+      const copyBanner = document.getElementById("copyBanner");
+      const noResultBox = document.getElementById("noResultBox");
+      const query = currentKeyword.toLowerCase();
+      const locations = getFilteredLocations();
+
+      let totalMatches = 0;
+      let scheduleLines = [];
+      let html = "";
+
+      locations.forEach(loc => {
+        const locStyle = getLocationStyle(loc.name);
+        let sessionsHtml = "";
+
+        loc.sessions.forEach(session => {
+          const matchedVendors = session.vendors.filter(v => query && v.name.toLowerCase().includes(query));
+          const hasMatch = matchedVendors.length > 0;
+
+          // 若有輸入關鍵字，但當天無該攤商，則直接跳過此日期列
+          if (query && !hasMatch) return;
+
+          let vendorsHtml = "";
+          session.vendors.forEach(v => {
+            const isMatch = query && v.name.toLowerCase().includes(query);
+            if (isMatch) totalMatches++;
+
+            vendorsHtml += `
+              <div class="px-2.5 py-1 rounded-lg text-xs border transition-all flex items-center gap-1.5 ${
+                isMatch 
+                  ? 'bg-amber-100 border-amber-300 text-amber-950 font-bold ring-2 ring-amber-400/40 shadow-sm' 
+                  : (v.isReserved ? 'bg-emerald-50 border-emerald-200 text-emerald-900 font-medium' : 'bg-slate-50 border-slate-200 text-slate-700')
+              }">
+                <span>${highlightText(v.name, query)}</span>
+                ${v.isReserved ? '<span class="text-[9px] bg-emerald-600 text-white font-bold px-1 py-0.2 rounded">已付</span>' : ''}
+              </div>
+            `;
+          });
+
+          if (hasMatch) {
+            scheduleLines.push(`📅 ${session.date}（${locStyle.short}）${session.status ? ' ['+session.status+']' : ''}`);
+            matchedVendors.forEach(m => scheduleLines.push(`   └ 攤位：${m.name}`));
           }
 
-          vendorsHtml += `
-            <span class="vendor-item ${isMatched ? 'matched' : ''}">
-              ${v.name}
-              ${v.isReserved ? '<span class="badge-reserved">已付</span>' : ''}
-            </span>
+          let statusBadge = "";
+          if (session.status === "滿攤") statusBadge = `<span class="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-xs">滿攤</span>`;
+          if (session.status === "包場") statusBadge = `<span class="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-xs">包場</span>`;
+
+          sessionsHtml += `
+            <div class="p-3 sm:p-4 border-b border-slate-100 last:border-none flex flex-col gap-2">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="font-bold text-xs sm:text-sm text-slate-800 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200/80">
+                    <i class="fa-regular fa-calendar text-slate-400 mr-1 text-xs"></i>
+                    ${session.date}
+                  </span>
+                  ${statusBadge}
+                </div>
+                <span class="text-[11px] text-slate-400 font-medium">${session.vendors.length} 攤商</span>
+              </div>
+              <div class="flex flex-wrap gap-1.5 pt-0.5">${vendorsHtml}</div>
+            </div>
           `;
         });
 
-        if (hasMatch) {
-          mySchedule.push(`📍 ${loc.name} | ${session.date} (${session.status || '正常'})`);
+        if (sessionsHtml !== "") {
+          html += `
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200/90 overflow-hidden">
+              <div class="px-4 py-3 font-bold text-sm sm:text-base border-b border-slate-100 flex items-center justify-between ${locStyle.cardBg}">
+                <span class="flex items-center gap-2">
+                  <span class="w-2.5 h-2.5 rounded-full ${locStyle.dot}"></span>
+                  ${loc.name}
+                </span>
+              </div>
+              <div>${sessionsHtml}</div>
+            </div>
+          `;
+        }
+      });
+
+      document.getElementById("matchCountBadge").innerText = totalMatches;
+
+      if ((query && totalMatches === 0) || (!query && html === "")) {
+        container.innerHTML = "";
+        noResultBox.classList.remove("hidden");
+        copyBanner.classList.add("hidden");
+        return;
+      }
+
+      noResultBox.classList.add("hidden");
+      container.innerHTML = html;
+
+      if (query && totalMatches > 0) {
+        copyBanner.classList.remove("hidden");
+        document.getElementById("searchedKeywordText").innerText = currentKeyword;
+        document.getElementById("scheduleCountText").innerText = totalMatches;
+        cachedScheduleText = scheduleLines;
+      } else {
+        copyBanner.classList.add("hidden");
+      }
+    }
+
+    // 月曆輔助函式
+    function changeMonth(delta) {
+      currentMonth += delta;
+      if (currentMonth < 0) {
+        currentMonth = 11;
+        currentYear--;
+      } else if (currentMonth > 11) {
+        currentMonth = 0;
+        currentYear++;
+      }
+      renderCalendarView();
+    }
+
+    // 建立指定年月的日期對照表 (確保幽靈場次被剔除)
+    function buildDateMapForCurrentMonth() {
+      const map = {};
+      const targetMonth = currentMonth + 1; // 1-12
+      const locations = getFilteredLocations();
+
+      locations.forEach(loc => {
+        loc.sessions.forEach(s => {
+          if (s.month === targetMonth && s.vendors.length > 0) {
+            const dayKey = s.day;
+            if (!map[dayKey]) map[dayKey] = [];
+            map[dayKey].push({
+              locationName: loc.name,
+              status: s.status,
+              vendors: s.vendors,
+              dateStr: s.date
+            });
+          }
+        });
+      });
+      return map;
+    }
+
+    // 渲染模式 2: 月曆閱讀模式 (全面挑高、完整展開所有場次)
+    function renderCalendarView() {
+      const calTitle = document.getElementById("calMonthTitle");
+      const grid = document.getElementById("calendarDaysGrid");
+      const query = currentKeyword.toLowerCase();
+      
+      const monthNames = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"];
+      calTitle.innerText = `${currentYear}年 ${monthNames[currentMonth]}`;
+
+      const dateMap = buildDateMapForCurrentMonth();
+      const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
+      const startOffset = (firstDayIndex === 0 ? 7 : firstDayIndex) - 1; // 週一為起始 (0~6)
+      const totalDays = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+      let daysHtml = "";
+
+      // 補足前置空格
+      for (let i = 0; i < startOffset; i++) {
+        daysHtml += `<div class="bg-slate-50/70 min-h-[95px] sm:min-h-[115px] p-1.5 text-slate-300"></div>`;
+      }
+
+      // 渲染當月 1 ~ N 日
+      for (let day = 1; day <= totalDays; day++) {
+        const events = dateMap[day] || [];
+        const hasEvents = events.length > 0;
+
+        let matchedInDay = false;
+        let matchedCount = 0;
+        let matchedVendorsList = [];
+
+        if (query && hasEvents) {
+          events.forEach(ev => {
+            ev.vendors.forEach(v => {
+              if (v.name.toLowerCase().includes(query)) {
+                matchedInDay = true;
+                matchedCount++;
+                matchedVendorsList.push(v.name);
+              }
+            });
+          });
         }
 
-        locationSessionsHtml += `
-          <div class="session-row">
-            <div class="session-info">
-              <span class="session-date">${session.date}</span>
-              ${session.status ? `<span class="badge badge-full">${session.status}</span>` : ''}
+        const isDimmed = query && !matchedInDay;
+
+        // 構造當天所有場次的彩色 Badge (不再截斷，完整展開)
+        let badgesHtml = "";
+        events.forEach(ev => {
+          const style = getLocationStyle(ev.locationName);
+          const hasTargetInEvent = query && ev.vendors.some(v => v.name.toLowerCase().includes(query));
+
+          badgesHtml += `
+            <div class="px-1.5 py-1 rounded text-[10px] sm:text-xs font-semibold leading-tight border transition-all ${
+              hasTargetInEvent 
+                ? 'bg-amber-300 border-amber-500 text-amber-950 ring-2 ring-amber-400 font-bold shadow-xs' 
+                : `${style.bg} border`
+            }">
+              <div class="flex items-center justify-between gap-1">
+                <span class="truncate">${style.short}</span>
+                <span class="text-[9px] opacity-80 font-normal shrink-0">${ev.vendors.length}攤</span>
+              </div>
+              ${ev.status ? `<div class="text-[8px] text-red-600 font-bold scale-90 -ml-0.5">${ev.status}</div>` : ''}
             </div>
-            <div class="vendor-wrap">${vendorsHtml}</div>
+          `;
+        });
+
+        // 搜尋命中時，顯示專屬攤商名稱小標籤
+        let hitVendorBadge = "";
+        if (matchedInDay) {
+          hitVendorBadge = `
+            <div class="mt-1 bg-amber-200 border border-amber-400 text-amber-950 text-[10px] font-bold px-1 py-0.5 rounded truncate">
+              🎯 ${matchedVendorsList[0]}
+            </div>
+          `;
+        }
+
+        daysHtml += `
+          <div 
+            onclick="selectCalendarDate(${day}, ${hasEvents})"
+            class="bg-white min-h-[95px] sm:min-h-[115px] p-1.5 sm:p-2 flex flex-col justify-between transition border-t border-transparent ${
+              hasEvents ? 'cursor-pointer hover:bg-emerald-50/60 active:scale-[0.98]' : 'cursor-default'
+            } ${
+              matchedInDay ? 'bg-amber-50/90 ring-2 ring-inset ring-amber-400' : ''
+            } ${isDimmed ? 'opacity-25' : ''}"
+          >
+            <!-- 頂部日期編號 -->
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs sm:text-sm font-bold ${hasEvents ? 'text-slate-800' : 'text-slate-400'}">
+                ${day}
+              </span>
+              ${matchedInDay ? `<span class="bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.2 rounded-full shadow-xs animate-bounce">${matchedCount}</span>` : ''}
+            </div>
+
+            <!-- 場次 Badge 列表 (挑高不截斷) -->
+            <div class="flex-1 flex flex-col gap-1 overflow-visible">
+              ${badgesHtml}
+              ${hitVendorBadge}
+            </div>
+
+            <!-- 底部微小提示點 -->
+            <div class="h-1 mt-1 flex items-center justify-center">
+              ${hasEvents ? '<div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>' : ''}
+            </div>
+          </div>
+        `;
+      }
+
+      grid.innerHTML = daysHtml;
+    }
+
+    // 點選月曆日期展開當日所有場地之詳細名單
+    function selectCalendarDate(day, hasEvents) {
+      if (!hasEvents) return;
+      const drawer = document.getElementById("selectedDateDrawer");
+      const title = document.getElementById("drawerDateTitle");
+      const content = document.getElementById("drawerSessionsContent");
+      const dateMap = buildDateMapForCurrentMonth();
+      const events = dateMap[day] || [];
+      const query = currentKeyword.toLowerCase();
+      const dateDisplay = `${currentMonth + 1}月${day}日`;
+
+      title.innerHTML = `📅 <b>${dateDisplay}</b> 當日出攤總覽 (共 ${events.length} 個場地)`;
+
+      let html = "";
+      events.forEach(ev => {
+        const style = getLocationStyle(ev.locationName);
+        html += `
+          <div class="p-3 sm:p-4 bg-slate-50 rounded-xl border border-slate-200/90 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs sm:text-sm font-bold ${style.bg} px-2.5 py-1 rounded-md border">${ev.locationName}</span>
+              ${ev.status ? `<span class="text-[10px] bg-red-500 text-white font-bold px-2 py-0.5 rounded">${ev.status}</span>` : ''}
+            </div>
+            <div class="flex flex-wrap gap-1.5 pt-1">
+              ${ev.vendors.map(v => {
+                const isMatch = query && v.name.toLowerCase().includes(query);
+                return `
+                  <span class="text-xs px-2.5 py-1 rounded-md border ${
+                    isMatch 
+                      ? 'bg-amber-200 border-amber-400 text-amber-950 font-bold ring-2 ring-amber-400' 
+                      : (v.isReserved ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-white text-slate-700 border-slate-200')
+                  }">
+                    ${highlightText(v.name, query)}
+                    ${v.isReserved ? '<span class="text-[9px] bg-emerald-600 text-white font-bold ml-1 px-1 rounded">已付</span>' : ''}
+                  </span>
+                `;
+              }).join('')}
+            </div>
           </div>
         `;
       });
 
-      // 如果該場地底下「至少有一個場次符合條件」（或未搜尋時有場次），才顯示該場地卡片
-      if (locationSessionsHtml !== "") {
-        html += `
-          <div class="card">
-            <div class="card-header">${loc.name}</div>
-            ${locationSessionsHtml}
-          </div>
-        `;
+      content.innerHTML = html;
+      drawer.classList.remove("hidden");
+      drawer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function closeDrawer() {
+      document.getElementById("selectedDateDrawer").classList.add("hidden");
+    }
+
+    // 複製個人專屬排班到 LINE
+    function copyMySchedule() {
+      if (cachedScheduleText.length === 0) return;
+      const text = `【${currentKeyword} 出攤場次班表】\n` + cachedScheduleText.join("\n") + "\n\n※ 綠色格為已付款保留攤位，請準時出席。祝出攤順利大賣！";
+      
+      const tempArea = document.createElement("textarea");
+      tempArea.value = text;
+      tempArea.style.position = "fixed";
+      tempArea.style.top = "-9999px";
+      document.body.appendChild(tempArea);
+      tempArea.select();
+      
+      try {
+        document.execCommand('copy');
+        showToast("已成功複製專屬班表！可直接貼在 LINE 群組");
+      } catch (err) {
+        showToast("複製失敗，請手動複製");
+      } finally {
+        document.body.removeChild(tempArea);
       }
-    });
-
-    if (query && totalMatches === 0) {
-      container.innerHTML = `<div class="loading">查無「${query}」的出攤紀錄，請確認名稱是否正確。</div>`;
-      summaryBar.style.display = "none";
-      return;
     }
 
-    container.innerHTML = html;
-
-    if (query && totalMatches > 0) {
-      summaryBar.style.display = "flex";
-      document.getElementById("matchCountText").innerText = `🎯「${query}」共有 ${totalMatches} 個出攤場次`;
-      window.cachedMySchedule = mySchedule;
-    } else {
-      summaryBar.style.display = "none";
+    // Toast 訊息提示
+    function showToast(msg) {
+      const toast = document.getElementById("toast");
+      document.getElementById("toastMsg").innerText = msg;
+      toast.classList.remove("opacity-0", "translate-y-3", "pointer-events-none");
+      toast.classList.add("opacity-100", "translate-y-0");
+      setTimeout(() => {
+        toast.classList.add("opacity-0", "translate-y-3", "pointer-events-none");
+        toast.classList.remove("opacity-100", "translate-y-0");
+      }, 2500);
     }
-  }
-  function copySchedule() {
-    if (!window.cachedMySchedule || window.cachedMySchedule.length === 0) return;
-    const text = `【${lastQuery} 出攤場次清單】\n` + window.cachedMySchedule.join("\n");
-    navigator.clipboard.writeText(text).then(() => {
-      alert("已複製專屬班表！可直接貼到 LINE 備忘或公告。");
-    });
-  }
 
-  fetchData();
-</script>
+    // 啟動連動載入
+    fetchData();
+  </script>
 </body>
 </html>
