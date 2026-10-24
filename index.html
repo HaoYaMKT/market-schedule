@@ -56,7 +56,7 @@
           <i class="fa-solid fa-store"></i>
         </div>
         <div>
-          <h1 class="text-base sm:text-lg font-bold tracking-tight">好野市集排班查詢</h1>
+          <h1 class="text-base sm:text-lg font-bold tracking-tight">市集攤位排班查詢</h1>
           <p id="updateText" class="text-[11px] text-emerald-100 flex items-center gap-1.5">
             <span class="inline-block w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span>
             連線試算表中...
@@ -97,7 +97,7 @@
           </div>
         </div>
 
-        <!-- 場地篩選下拉選單 (自 API 動態填入) -->
+        <!-- 場地篩選下拉選單 (自 API 動態填入，涵蓋所有12+場地) -->
         <div class="w-full sm:w-64 shrink-0">
           <div class="relative">
             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-emerald-600 text-xs">
@@ -156,7 +156,7 @@
       <div id="contentList" class="space-y-4"></div>
     </div>
 
-    <!-- 視圖 2: 月曆閱讀模式 (挑高無遮蔽，一覽無遺) -->
+    <!-- 視圖 2: 月曆閱讀模式 -->
     <div id="calendarView" class="hidden space-y-3.5">
       <!-- 月份控制列 -->
       <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-3 sm:p-3.5 flex items-center justify-between">
@@ -165,14 +165,14 @@
         </button>
         <div class="text-center">
           <div id="calMonthTitle" class="text-base sm:text-lg font-bold text-slate-800">2026年 11月</div>
-          <p class="text-[11px] text-slate-400">點選有標記的日期即可展開當日排班細節</p>
+          <p id="calSubTitle" class="text-[11px] text-slate-400">點選有標記的日期即可聚焦該日排班細節</p>
         </div>
         <button onclick="changeMonth(1)" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 flex items-center justify-center transition">
           <i class="fa-solid fa-chevron-right text-xs"></i>
         </button>
       </div>
 
-      <!-- 月曆主體 (好野風格溫暖金黃表頭) -->
+      <!-- 月曆主體 -->
       <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div class="calendar-grid bg-amber-400 text-amber-950 font-bold text-xs sm:text-sm text-center py-2.5 shadow-sm">
           <span>一</span>
@@ -184,20 +184,25 @@
           <span class="text-amber-900">日</span>
         </div>
 
-        <!-- 月曆日期格子 (挑高自適應) -->
+        <!-- 月曆日期格子 (挑高展開，無截斷) -->
         <div id="calendarDaysGrid" class="calendar-grid bg-slate-200 gap-[1px]"></div>
       </div>
 
-      <!-- 點選日期後的展開詳細抽屜 -->
-      <div id="selectedDateDrawer" class="hidden bg-white rounded-2xl border-2 border-emerald-400/80 shadow-lg p-4 sm:p-5 transition-all">
+      <!-- 月曆下方自動展開/點選展開的排班明細區 (改善手順：搜尋時自動列出該月份所有命中日期) -->
+      <div id="calendarDetailDrawer" class="hidden bg-white rounded-2xl border-2 border-emerald-400/80 shadow-md p-4 sm:p-5 transition-all">
         <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-2.5">
           <div class="flex items-center gap-2">
-            <span class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
-            <h3 id="drawerDateTitle" class="font-bold text-sm sm:text-base text-slate-800">當日出攤總覽</h3>
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            <h3 id="drawerDateTitle" class="font-bold text-sm sm:text-base text-slate-800">場次詳細清單</h3>
           </div>
-          <button onclick="closeDrawer()" class="text-slate-400 hover:text-slate-600 text-xs px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg transition">關閉</button>
+          <div id="drawerActionBtns" class="flex items-center gap-2">
+            <button id="btnShowAllMatchedInMonth" onclick="resetToMonthOverview()" class="hidden text-emerald-700 hover:text-emerald-800 text-xs px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition font-medium">
+              <i class="fa-solid fa-list mr-1"></i>看本月全部
+            </button>
+            <button onclick="closeDrawer()" class="text-slate-400 hover:text-slate-600 text-xs px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg transition">收合</button>
+          </div>
         </div>
-        <div id="drawerSessionsContent" class="space-y-3"></div>
+        <div id="drawerSessionsContent" class="space-y-4"></div>
       </div>
     </div>
 
@@ -222,7 +227,7 @@
   </div>
 
   <script>
-    // 嚴格串接既有的 Google Apps Script Web App API
+    // 串接既有的 Google Apps Script Web App API
     const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxb2TSOJSZAJpHABPvlNamRMNpSM6P3n5YIgDmheTkkUp_XLcX7wOwtCe0als1qvZ-2/exec";
 
     // 狀態變數
@@ -232,25 +237,33 @@
     let currentViewMode = "list"; // 'list' | 'calendar'
     let currentYear = 2026;
     let currentMonth = 10; // 0-based: 10 代表 11月
+    let selectedDayFilter = null; // null: 顯示整月所有命中，或指定某特定 day: 1~31
     let cachedScheduleText = [];
 
-    // 各場地色彩風格對照
+    // 動態配色對照
     function getLocationStyle(locName) {
       if (locName.includes("嘉興")) return { bg: "bg-pink-100 text-pink-800 border-pink-300", cardBg: "bg-pink-50/70 border-pink-200", dot: "bg-pink-500", short: "嘉興路" };
       if (locName.includes("勝利")) return { bg: "bg-amber-100 text-amber-900 border-amber-300", cardBg: "bg-amber-50/70 border-amber-200", dot: "bg-amber-500", short: "勝利七" };
       if (locName.includes("星都匯")) return { bg: "bg-blue-100 text-blue-900 border-blue-300", cardBg: "bg-blue-50/70 border-blue-200", dot: "bg-blue-500", short: "星都匯" };
       if (locName.includes("嘉豐")) return { bg: "bg-rose-100 text-rose-900 border-rose-300", cardBg: "bg-rose-50/70 border-rose-200", dot: "bg-rose-500", short: "嘉豐十一" };
       if (locName.includes("雙子星")) return { bg: "bg-emerald-100 text-emerald-900 border-emerald-300", cardBg: "bg-emerald-50/70 border-emerald-200", dot: "bg-emerald-600", short: "雙子星" };
-      return { bg: "bg-slate-100 text-slate-800 border-slate-300", cardBg: "bg-slate-50 border-slate-200", dot: "bg-slate-500", short: locName.substring(0, 4) };
+      if (locName.includes("IPARK") || locName.includes("iPark") || locName.includes("ipark")) return { bg: "bg-teal-100 text-teal-900 border-teal-300", cardBg: "bg-teal-50/70 border-teal-200", dot: "bg-teal-600", short: "iPark" };
+      if (locName.includes("HOLA")) return { bg: "bg-orange-100 text-orange-900 border-orange-300", cardBg: "bg-orange-50/70 border-orange-200", dot: "bg-orange-500", short: "東大HOLA" };
+      if (locName.includes("寶睿")) return { bg: "bg-purple-100 text-purple-900 border-purple-300", cardBg: "bg-purple-50/70 border-purple-200", dot: "bg-purple-600", short: "寶睿第苑" };
+      if (locName.includes("特別")) return { bg: "bg-fuchsia-100 text-fuchsia-900 border-fuchsia-300", cardBg: "bg-fuchsia-50/70 border-fuchsia-200", dot: "bg-fuchsia-600", short: "特別場次" };
+      if (locName.includes("迪卡儂")) return { bg: "bg-cyan-100 text-cyan-900 border-cyan-300", cardBg: "bg-cyan-50/70 border-cyan-200", dot: "bg-cyan-600", short: "新竹迪卡儂" };
+      if (locName.includes("NOVA")) return { bg: "bg-amber-100 text-amber-900 border-amber-300", cardBg: "bg-amber-50/70 border-amber-200", dot: "bg-amber-600", short: "新竹NOVA" };
+      if (locName.includes("家樂福")) return { bg: "bg-lime-100 text-lime-900 border-lime-300", cardBg: "bg-lime-50/70 border-lime-200", dot: "bg-lime-600", short: "長春家樂福" };
+      
+      const cleanName = locName.replace(/\(.*?\)/g, "").trim();
+      return { bg: "bg-slate-100 text-slate-800 border-slate-300", cardBg: "bg-slate-50 border-slate-200", dot: "bg-slate-500", short: cleanName.substring(0, 5) };
     }
 
-    // 嚴格日期解析器 (解決幽靈場次 Bug)
-    // 必須為純粹有效的日期：如 "11月2日", "2026/11/02", "11/2" 等，嚴格驗證月 (1-12) 與日 (1-31)
+    // 嚴格日期解析器 (月 1-12, 日 1-31)
     function parseStrictDate(dateStr) {
       if (!dateStr || typeof dateStr !== "string") return null;
       const clean = dateStr.trim();
       
-      // 1. 中文格式：X月X日
       const zhMatch = clean.match(/^(\d{1,2})月(\d{1,2})日?$/);
       if (zhMatch) {
         const m = parseInt(zhMatch[1], 10);
@@ -260,7 +273,6 @@
         }
       }
 
-      // 2. 斜線/橫線格式：YYYY/MM/DD 或 MM/DD
       const slashMatch = clean.match(/^(?:(\d{4})[\/\-])?(\d{1,2})[\/\-](\d{1,2})$/);
       if (slashMatch) {
         const m = parseInt(slashMatch[2], 10);
@@ -273,7 +285,7 @@
       return null;
     }
 
-    // 從 Google Apps Script 擷取資料
+    // 連動 Google Apps Script
     async function fetchData(isManual = false) {
       const syncIcon = document.getElementById("syncIcon");
       if (syncIcon) syncIcon.classList.add("fa-spin");
@@ -283,7 +295,6 @@
         const res = await fetch(GAS_API_URL);
         const json = await res.json();
         if (json.success && json.data) {
-          // 清理並驗證資料：徹底剃除幽靈場次與無效日期
           rawLocations = sanitizeLocationData(json.data);
           document.getElementById("updateText").innerText = `已連線同步 (${json.updatedTime ? json.updatedTime.split(" ")[1] : '最新'})`;
         } else {
@@ -301,7 +312,7 @@
       }
     }
 
-    // 核心資料清理：嚴格排除無攤位 (vendors=0) 或非日期列
+    // 核心資料清理 (嚴格剔除非日期列及無攤商之空白列)
     function sanitizeLocationData(locations) {
       const validLocations = [];
 
@@ -310,7 +321,6 @@
 
         const validSessions = [];
         loc.sessions.forEach(session => {
-          // 必須具備有效日期，且攤商名單長度大於 0
           const parsed = parseStrictDate(session.date);
           const hasVendors = session.vendors && Array.isArray(session.vendors) && session.vendors.length > 0;
 
@@ -357,12 +367,14 @@
       const input = document.getElementById("searchInput");
       currentKeyword = input.value.trim();
       document.getElementById("clearBtnWrap").classList.toggle("hidden", !currentKeyword);
+      selectedDayFilter = null; // 重設單日聚焦，讓其預設自動列出全月所有命中日期
       renderAll();
     }
 
     function handleLocationFilterChange() {
       const select = document.getElementById("locationFilter");
       selectedLocation = select.value;
+      selectedDayFilter = null;
       renderAll();
     }
 
@@ -370,6 +382,7 @@
       document.getElementById("searchInput").value = "";
       currentKeyword = "";
       document.getElementById("clearBtnWrap").classList.add("hidden");
+      selectedDayFilter = null;
       renderAll();
     }
 
@@ -400,7 +413,6 @@
       return text.replace(regex, '<span class="mark-highlight">$1</span>');
     }
 
-    // 取得當前經過場地篩選後的地點
     function getFilteredLocations() {
       if (selectedLocation === "all") return rawLocations;
       return rawLocations.filter(loc => loc.name === selectedLocation);
@@ -411,7 +423,7 @@
       renderCalendarView();
     }
 
-    // 渲染模式 1: 清單排班模式 (精簡無關日期，僅留下有出攤之日期)
+    // 視圖 1: 清單排班模式
     function renderListView() {
       const container = document.getElementById("contentList");
       const copyBanner = document.getElementById("copyBanner");
@@ -431,7 +443,6 @@
           const matchedVendors = session.vendors.filter(v => query && v.name.toLowerCase().includes(query));
           const hasMatch = matchedVendors.length > 0;
 
-          // 若有輸入關鍵字，但當天無該攤商，則直接跳過此日期列
           if (query && !hasMatch) return;
 
           let vendorsHtml = "";
@@ -524,10 +535,10 @@
         currentMonth = 0;
         currentYear++;
       }
+      selectedDayFilter = null; // 切換月份時，自動列出新月份所有命中的出攤日期
       renderCalendarView();
     }
 
-    // 建立指定年月的日期對照表 (確保幽靈場次被剔除)
     function buildDateMapForCurrentMonth() {
       const map = {};
       const targetMonth = currentMonth + 1; // 1-12
@@ -542,7 +553,8 @@
               locationName: loc.name,
               status: s.status,
               vendors: s.vendors,
-              dateStr: s.date
+              dateStr: s.date,
+              day: s.day
             });
           }
         });
@@ -550,7 +562,7 @@
       return map;
     }
 
-    // 渲染模式 2: 月曆閱讀模式 (全面挑高、完整展開所有場次)
+    // 視圖 2: 月曆閱讀模式 (優化操作手順：自動聚合當月所有命中日期)
     function renderCalendarView() {
       const calTitle = document.getElementById("calMonthTitle");
       const grid = document.getElementById("calendarDaysGrid");
@@ -565,13 +577,13 @@
       const totalDays = new Date(currentYear, currentMonth + 1, 0).getDate();
 
       let daysHtml = "";
+      const matchedDaysInCurrentMonth = []; // 儲存該月所有命中的日期清單
 
-      // 補足前置空格
+      // 前置空格
       for (let i = 0; i < startOffset; i++) {
         daysHtml += `<div class="bg-slate-50/70 min-h-[95px] sm:min-h-[115px] p-1.5 text-slate-300"></div>`;
       }
 
-      // 渲染當月 1 ~ N 日
       for (let day = 1; day <= totalDays; day++) {
         const events = dateMap[day] || [];
         const hasEvents = events.length > 0;
@@ -580,28 +592,35 @@
         let matchedCount = 0;
         let matchedVendorsList = [];
 
-        if (query && hasEvents) {
+        if (hasEvents) {
           events.forEach(ev => {
             ev.vendors.forEach(v => {
-              if (v.name.toLowerCase().includes(query)) {
+              if (query && v.name.toLowerCase().includes(query)) {
                 matchedInDay = true;
                 matchedCount++;
-                matchedVendorsList.push(v.name);
+                if (!matchedVendorsList.includes(v.name)) {
+                  matchedVendorsList.push(v.name);
+                }
               }
             });
           });
         }
 
-        const isDimmed = query && !matchedInDay;
+        if (matchedInDay) {
+          matchedDaysInCurrentMonth.push(day);
+        }
 
-        // 構造當天所有場次的彩色 Badge (不再截斷，完整展開)
+        const isDimmed = query && !matchedInDay;
+        const isSelectedDay = selectedDayFilter === day;
+
+        // 該格場次 Badges
         let badgesHtml = "";
         events.forEach(ev => {
           const style = getLocationStyle(ev.locationName);
           const hasTargetInEvent = query && ev.vendors.some(v => v.name.toLowerCase().includes(query));
 
           badgesHtml += `
-            <div class="px-1.5 py-1 rounded text-[10px] sm:text-xs font-semibold leading-tight border transition-all ${
+            <div class="px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-semibold leading-tight border transition-all ${
               hasTargetInEvent 
                 ? 'bg-amber-300 border-amber-500 text-amber-950 ring-2 ring-amber-400 font-bold shadow-xs' 
                 : `${style.bg} border`
@@ -615,11 +634,10 @@
           `;
         });
 
-        // 搜尋命中時，顯示專屬攤商名稱小標籤
         let hitVendorBadge = "";
         if (matchedInDay) {
           hitVendorBadge = `
-            <div class="mt-1 bg-amber-200 border border-amber-400 text-amber-950 text-[10px] font-bold px-1 py-0.5 rounded truncate">
+            <div class="mt-0.5 bg-amber-200 border border-amber-400 text-amber-950 text-[10px] font-bold px-1 py-0.5 rounded truncate">
               🎯 ${matchedVendorsList[0]}
             </div>
           `;
@@ -631,24 +649,21 @@
             class="bg-white min-h-[95px] sm:min-h-[115px] p-1.5 sm:p-2 flex flex-col justify-between transition border-t border-transparent ${
               hasEvents ? 'cursor-pointer hover:bg-emerald-50/60 active:scale-[0.98]' : 'cursor-default'
             } ${
-              matchedInDay ? 'bg-amber-50/90 ring-2 ring-inset ring-amber-400' : ''
+              isSelectedDay ? 'ring-3 ring-emerald-500 bg-emerald-50/80 z-10' : (matchedInDay ? 'bg-amber-50/90 ring-2 ring-inset ring-amber-400' : '')
             } ${isDimmed ? 'opacity-25' : ''}"
           >
-            <!-- 頂部日期編號 -->
             <div class="flex items-center justify-between mb-1">
-              <span class="text-xs sm:text-sm font-bold ${hasEvents ? 'text-slate-800' : 'text-slate-400'}">
+              <span class="text-xs sm:text-sm font-bold ${isSelectedDay ? 'text-emerald-700 underline font-black' : (hasEvents ? 'text-slate-800' : 'text-slate-400')}">
                 ${day}
               </span>
-              ${matchedInDay ? `<span class="bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.2 rounded-full shadow-xs animate-bounce">${matchedCount}</span>` : ''}
+              ${matchedInDay ? `<span class="bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.2 rounded-full shadow-xs">${matchedCount}</span>` : ''}
             </div>
 
-            <!-- 場次 Badge 列表 (挑高不截斷) -->
             <div class="flex-1 flex flex-col gap-1 overflow-visible">
               ${badgesHtml}
               ${hitVendorBadge}
             </div>
 
-            <!-- 底部微小提示點 -->
             <div class="h-1 mt-1 flex items-center justify-center">
               ${hasEvents ? '<div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>' : ''}
             </div>
@@ -657,28 +672,98 @@
       }
 
       grid.innerHTML = daysHtml;
+
+      // 【核心改善手順】：自動渲染下方的詳細明細清單
+      updateCalendarDrawer(dateMap, matchedDaysInCurrentMonth);
     }
 
-    // 點選月曆日期展開當日所有場地之詳細名單
-    function selectCalendarDate(day, hasEvents) {
-      if (!hasEvents) return;
-      const drawer = document.getElementById("selectedDateDrawer");
+    // 更新月曆下方詳細明細抽屜
+    function updateCalendarDrawer(dateMap, matchedDays) {
+      const drawer = document.getElementById("calendarDetailDrawer");
       const title = document.getElementById("drawerDateTitle");
       const content = document.getElementById("drawerSessionsContent");
-      const dateMap = buildDateMapForCurrentMonth();
-      const events = dateMap[day] || [];
+      const resetBtn = document.getElementById("btnShowAllMatchedInMonth");
       const query = currentKeyword.toLowerCase();
-      const dateDisplay = `${currentMonth + 1}月${day}日`;
+      const currentMonthNum = currentMonth + 1;
 
-      title.innerHTML = `📅 <b>${dateDisplay}</b> 當日出攤總覽 (共 ${events.length} 個場地)`;
+      // 情境 A：有輸入關鍵字篩選
+      if (query) {
+        if (matchedDays.length === 0) {
+          // 當月完全沒有該攤商
+          drawer.classList.remove("hidden");
+          resetBtn.classList.add("hidden");
+          title.innerHTML = `⚠️ <b>${currentMonthNum}月份</b> 查無「${currentKeyword}」的出攤紀錄`;
+          content.innerHTML = `<div class="py-6 text-center text-slate-400 text-xs sm:text-sm">本月份暫無安排該攤商，可點選上方「切換月份」查看其他月份。</div>`;
+          return;
+        }
 
+        drawer.classList.remove("hidden");
+
+        // 若使用者主動點擊了某一特定天
+        if (selectedDayFilter && matchedDays.includes(selectedDayFilter)) {
+          resetBtn.classList.remove("hidden");
+          title.innerHTML = `📅 <b>${currentMonthNum}月${selectedDayFilter}日</b> 單日排班（聚焦模式）`;
+          content.innerHTML = renderSessionsForSpecificDay(dateMap[selectedDayFilter], query);
+          return;
+        }
+
+        // 預設自動模式：一次將該月份所有命中日期列出 (例如 11/2, 11/18, 11/24, 11/30)
+        resetBtn.classList.add("hidden");
+        title.innerHTML = `🎯 <b>「${currentKeyword}」</b> 在 ${currentMonthNum}月份 共出攤 <span class="text-emerald-600 font-black">${matchedDays.length}</span> 天`;
+
+        let daysHtml = "";
+        matchedDays.forEach(day => {
+          const events = dateMap[day] || [];
+          // 篩選出該天中有包含關鍵字的場地
+          const relevantEvents = events.filter(ev => ev.vendors.some(v => v.name.toLowerCase().includes(query)));
+
+          daysHtml += `
+            <div class="border border-slate-200/90 rounded-xl bg-slate-50/80 overflow-hidden shadow-xs">
+              <div class="px-3.5 py-2.5 bg-gradient-to-r from-amber-100 to-amber-50 border-b border-amber-200/70 flex items-center justify-between">
+                <span class="font-bold text-xs sm:text-sm text-amber-950 flex items-center gap-1.5">
+                  <i class="fa-regular fa-calendar-check text-amber-600"></i>
+                  ${currentMonthNum}月${day}日 出攤行程
+                </span>
+                <button onclick="focusSingleDay(${day})" class="text-[11px] text-amber-800 hover:text-amber-900 bg-white/80 hover:bg-white px-2 py-0.5 rounded shadow-xs transition">
+                  只看這天
+                </button>
+              </div>
+              <div class="p-3 space-y-2.5">
+                ${renderEventsList(relevantEvents, query)}
+              </div>
+            </div>
+          `;
+        });
+
+        content.innerHTML = daysHtml;
+        return;
+      }
+
+      // 情境 B：沒有輸入關鍵字，但點選了某特定日期
+      if (selectedDayFilter) {
+        const events = dateMap[selectedDayFilter] || [];
+        if (events.length > 0) {
+          drawer.classList.remove("hidden");
+          resetBtn.classList.add("hidden");
+          title.innerHTML = `📅 <b>${currentMonthNum}月${selectedDayFilter}日</b> 當日出攤總覽 (共 ${events.length} 個場地)`;
+          content.innerHTML = renderEventsList(events, "");
+          return;
+        }
+      }
+
+      // 情境 C：無關鍵字且未點選日期 -> 收合抽屜
+      drawer.classList.add("hidden");
+    }
+
+    // 渲染單場地事件列表小組件
+    function renderEventsList(events, query) {
       let html = "";
       events.forEach(ev => {
         const style = getLocationStyle(ev.locationName);
         html += `
-          <div class="p-3 sm:p-4 bg-slate-50 rounded-xl border border-slate-200/90 space-y-2">
+          <div class="p-2.5 sm:p-3 bg-white rounded-lg border border-slate-200/80 space-y-1.5">
             <div class="flex items-center justify-between">
-              <span class="text-xs sm:text-sm font-bold ${style.bg} px-2.5 py-1 rounded-md border">${ev.locationName}</span>
+              <span class="text-xs font-bold ${style.bg} px-2 py-0.5 rounded-md border">${ev.locationName}</span>
               ${ev.status ? `<span class="text-[10px] bg-red-500 text-white font-bold px-2 py-0.5 rounded">${ev.status}</span>` : ''}
             </div>
             <div class="flex flex-wrap gap-1.5 pt-1">
@@ -688,7 +773,7 @@
                   <span class="text-xs px-2.5 py-1 rounded-md border ${
                     isMatch 
                       ? 'bg-amber-200 border-amber-400 text-amber-950 font-bold ring-2 ring-amber-400' 
-                      : (v.isReserved ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-white text-slate-700 border-slate-200')
+                      : (v.isReserved ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-slate-50 text-slate-700 border-slate-200')
                   }">
                     ${highlightText(v.name, query)}
                     ${v.isReserved ? '<span class="text-[9px] bg-emerald-600 text-white font-bold ml-1 px-1 rounded">已付</span>' : ''}
@@ -699,14 +784,38 @@
           </div>
         `;
       });
+      return html;
+    }
 
-      content.innerHTML = html;
-      drawer.classList.remove("hidden");
-      drawer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    function renderSessionsForSpecificDay(events, query) {
+      return renderEventsList(events, query);
+    }
+
+    // 點擊月曆上的日期格
+    function selectCalendarDate(day, hasEvents) {
+      if (!hasEvents) return;
+      selectedDayFilter = (selectedDayFilter === day) ? null : day;
+      renderCalendarView();
+      
+      const drawer = document.getElementById("calendarDetailDrawer");
+      if (!drawer.classList.contains("hidden")) {
+        drawer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+
+    function focusSingleDay(day) {
+      selectedDayFilter = day;
+      renderCalendarView();
+    }
+
+    function resetToMonthOverview() {
+      selectedDayFilter = null;
+      renderCalendarView();
     }
 
     function closeDrawer() {
-      document.getElementById("selectedDateDrawer").classList.add("hidden");
+      selectedDayFilter = null;
+      document.getElementById("calendarDetailDrawer").classList.add("hidden");
     }
 
     // 複製個人專屬排班到 LINE
